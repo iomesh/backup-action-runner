@@ -90,7 +90,6 @@ jobs:
           unzip action-versions.zip
           cd action-versions-main/script
           ./add-action.sh actions/setup-go
-          ./add-action.sh actions/upload-artifact
           ./add-action.sh actions/github-script
           ./add-action.sh andstor/file-existence-action
           ./add-action.sh codecov/codecov-action
@@ -101,9 +100,9 @@ jobs:
           ./add-action.sh iomesh/action-slack-notify
           ./add-action.sh myrotvorets/set-commit-status-action
           ./add-action.sh nick-fields/retry
-          ./add-action.sh Wandalen/wretry.action
+          ./add-action.sh Wandalen/wretry.action '+^master$' '+^v[0-9]+(\.[0-9]+){0,2}$' '+^v[0-9]+(\.[0-9]+){0,2}_js_action$'
           ./add-action.sh xt0rted/pull-request-comment-branch
-          ./add-action.sh 8398a7/action-slac
+          ./add-action.sh 8398a7/action-slack
           ./build.sh
           mv ${{ runner.temp }}/action-versions-main/_layout_tarball ${{ github.workspace }}/action-archive-cache
           rm -rf ${{ runner.temp }}/action-versions-main
