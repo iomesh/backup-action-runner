@@ -99,6 +99,7 @@ jobs:
           ./build.sh
           mv ${{ runner.temp }}/action-versions-main/_layout_tarball ${{ github.workspace }}/action-archive-cache
           rm -rf ${{ runner.temp }}/action-versions-main
+        name: Prepare Actions archive cache
 
       ##############################################
       ## Build the image
