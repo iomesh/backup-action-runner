@@ -1,0 +1,142 @@
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-tool-cache:
+    runs-on: ubuntu-latest
+    steps:
+      ## Remove any existing cached content
+      - name: Clear any existing tool cache
+        run: |
+          mv "${{ runner.tool_cache }}" "${{ runner.tool_cache }}.old"
+          mkdir -p "${{ runner.tool_cache }}"
+
+      ## Run the setup tasks to download and cache the required tools
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Setup Go 1.21.13
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21.13
+
+      - name: Setup Go 1.22.10
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.22.10
+
+      - name: Setup Go 1.23.9
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23.9
+
+      ## Compress the tool cache folder for faster upload
+      - name: Archive tool cache
+        working-directory: ${{ runner.tool_cache }}
+        run: |
+          tar -czf tool_cache.tar.gz *
+
+      ## Upload the archive as an artifact
+      - name: Upload tool cache artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tools
+          retention-days: 1
+          path: ${{runner.tool_cache}}/tool_cache.tar.gz
+
+  build-with-tool-cache:
+    runs-on: ubuntu-latest
+
+    ## We need the tools archive to have been created
+    needs: create-tool-cache
+    env:
+      # Setup some variables for naming the image automatically
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+
+    steps:
+      ## Checkout the repo to get the Dockerfile
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      ##############################################
+      ## Build the tool cache
+      ##############################################
+
+      ## Download the tools artifact created in the last job
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tools
+          path: ${{github.workspace}}/tools
+
+      ## Expand the tools into the expected folder
+      - name: Unpack tools
+        run: |
+          tar -xzf ${{github.workspace}}/tools/tool_cache.tar.gz -C ${{github.workspace}}/tools/
+          rm ${{github.workspace}}/tools/tool_cache.tar.gz
+
+      ##############################################
+      ## Build the Actions archive cache
+      ##############################################
+      - run: |
+          cd ${{ runner.temp }}
+          curl -sL -o action-versions.zip https://github.com/actions/action-versions/archive/refs/heads/main.zip
+          unzip action-versions.zip
+          cd action-versions-main/script
+          ./add-action.sh actions/setup-go
+          ./add-action.sh codecov/codecov-action
+          ./add-action.sh actions/github-script
+          ./add-action.sh golangci/golangci-lint-action
+          ./add-action.sh Wandalen/wretry.action
+          ./add-action.sh docker/setup-buildx-action
+          ./add-action.sh docker/build-push-action
+          ./build.sh
+          mv ${{ runner.temp }}/action-versions-main/_layout_tarball ${{ github.workspace }}/action-archive-cache
+          rm -rf ${{ runner.temp }}/action-versions-main
+
+      ##############################################
+      ## Build the image
+      ##############################################
+
+      ## Set up BuildKit Docker container builder
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get commit time
+        id: commit_time
+        run: |
+          COMMIT_TIME=$(git log -1 --format=%at | awk '{print $1}')
+          COMMIT_TIME_FORMATTED=$(date -u -d @${COMMIT_TIME} +'%Y%m%d%H%M%S')
+          echo "::set-output name=now::$COMMIT_TIME_FORMATTED"
+
+      ## Automatically create metadata for the image
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          tags: type=raw,value=${{ steps.commit_time.outputs.now }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      ## Log into the registry (to allow pushes)
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      ## Build and push the image
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
