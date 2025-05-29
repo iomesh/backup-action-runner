@@ -90,12 +90,20 @@ jobs:
           unzip action-versions.zip
           cd action-versions-main/script
           ./add-action.sh actions/setup-go
-          ./add-action.sh codecov/codecov-action
+          ./add-action.sh actions/upload-artifact
           ./add-action.sh actions/github-script
-          ./add-action.sh golangci/golangci-lint-action
-          ./add-action.sh Wandalen/wretry.action
+          ./add-action.sh andstor/file-existence-action
+          ./add-action.sh codecov/codecov-action
           ./add-action.sh docker/setup-buildx-action
           ./add-action.sh docker/build-push-action
+          ./add-action.sh docker/login-action
+          ./add-action.sh golangci/golangci-lint-action
+          ./add-action.sh iomesh/action-slack-notify
+          ./add-action.sh myrotvorets/set-commit-status-action
+          ./add-action.sh nick-fields/retry
+          ./add-action.sh Wandalen/wretry.action
+          ./add-action.sh xt0rted/pull-request-comment-branch
+          ./add-action.sh 8398a7/action-slac
           ./build.sh
           mv ${{ runner.temp }}/action-versions-main/_layout_tarball ${{ github.workspace }}/action-archive-cache
           rm -rf ${{ runner.temp }}/action-versions-main
